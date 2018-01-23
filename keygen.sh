@@ -1,4 +1,5 @@
 # brew install coreutils
+# Taken from btcutils.sh
 declare -a base58=(
 	1 2 3 4 5 6 7 8 9 A B C D E F G H J K L M N P Q R S T U V W X Y Z 
 	a b c d e f g h i j k m n o p q r s t u v w x y z
@@ -9,6 +10,7 @@ encodeBase58() {
     dc -e "16i ${1^^} [3A ~r d0<x]dsxx +f" |
     while read -r n; do echo -n "${base58[n]}"; done
 }
+# END
 
 genkey(){
 	# Bitcoin uses ECDSA so ECDSA keypairs are Bitcoin keypairs as well.
@@ -35,6 +37,9 @@ genkey(){
 	echo "Generating BitCoin public key"
 	openssl ec -in $PRIVATE_KEY -pubout -outform DER|tail -c 65|xxd -p -c 65|tr -d '\n' > $BITCOIN_PUBLIC_KEY
 
+	echo "Generating BitCoin public key Compressed"
+	openssl ec -in $PUBLIC_KEY -pubin -conv_form compressed -outform DER|xxd -p|tr -d '\n'|tail -c 66 > $BITCOIN_PUBLIC_KEY_COMPRESSED
+
 	echo "Generating BitCoin Private key WIF"
 	BTCPK=`cat $BITCOIN_PRIVATE_KEY`
 	BTCP2="80"$BTCPK
@@ -42,7 +47,7 @@ genkey(){
 	HASH2="$(echo $HASH1 | xxd -r -p - | gsha256sum | head -c 64)"
 	MAGIC="$(echo $HASH2 | head -c 8)"
 	PRIVATEWIF="$(encodeBase58 $BTCP2$MAGIC)"
-	echo $PRIVATEWIF
+	echo -n $PRIVATEWIF > $BITCOIN_PRIVATE_KEY_WIF
 
 	echo "Generating BitCoin Address"
 	BTCPBK=`cat $BITCOIN_PUBLIC_KEY`
@@ -53,7 +58,7 @@ genkey(){
 	AHASH4=$(echo -n $AHASH3 | xxd -r -p - | gsha256sum | head -c 64)
 	CHKSUM=$(echo -n $AHASH4 | head -c 8)
 	BTCADDR="$(encodeBase58 $VERBYT$CHKSUM)"
-	echo $BTCADDR
+	echo -n $BTCADDR > $BITCOIN_ADDR
 	
 	echo "Files created!"
 }
@@ -65,8 +70,11 @@ if [ -n "$1" ]; then
 	PRIVATE_KEY=${KEYDIR}/${FILE_NAME}_private.pem
 	PUBLIC_KEY=${KEYDIR}/${FILE_NAME}_public.pem
 	PUBLIC_KEY_COMPRESSED=${KEYDIR}/${FILE_NAME}_public_compressed.pem
-	BITCOIN_PRIVATE_KEY=${KEYDIR}/${FILE_NAME}_btc_uncompressed_private.key
-	BITCOIN_PUBLIC_KEY=${KEYDIR}/${FILE_NAME}_btc_uncompressed_public.key
+	BITCOIN_PRIVATE_KEY=${KEYDIR}/${FILE_NAME}_btc_private.key
+	BITCOIN_PRIVATE_KEY_WIF=${KEYDIR}/${FILE_NAME}_btc_private_wif.key
+	BITCOIN_PUBLIC_KEY=${KEYDIR}/${FILE_NAME}_btc_public.key
+	BITCOIN_PUBLIC_KEY_COMPRESSED=${KEYDIR}/${FILE_NAME}_btc_public_compressed.key
+	BITCOIN_ADDR=${KEYDIR}/${FILE_NAME}_btc_address.txt
 	genkey
 else
 	echo "usage: btckeygen.sh keyname"
