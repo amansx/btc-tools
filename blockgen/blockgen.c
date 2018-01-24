@@ -327,6 +327,7 @@ int main(int argc, char *argv[])
 			if(time(NULL)-start >= 1)
 			{
 				printf("\r%d Hashes/s, Nonce %u\r", counter, startNonce);
+				printf("\r\n");
 				counter = 0;
 				start = time(NULL);
 			}
