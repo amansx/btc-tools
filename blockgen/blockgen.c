@@ -288,6 +288,7 @@ int main(int argc, char *argv[])
 	//if(generateBlock)
 	{
 		printf("Generating block...\n");
+		printf("This might take a few minutes\n");
 		if(!unixtime)
 		{
 			unixtime = time(NULL);
