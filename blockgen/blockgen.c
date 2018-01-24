@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
 	
 	if((argc-1) < 3)
 	{
-		fprintf(stderr, "Usage: genesisgen [options] <pubkey> \"<timestamp>\" <nBits>\n");
+		fprintf(stderr, "Usage: PROGRAM [options] <pubkey> \"<timestamp>\" <nBits>\n");
 		return 0;		
 	}
 	

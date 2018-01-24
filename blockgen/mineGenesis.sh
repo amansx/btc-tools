@@ -15,7 +15,7 @@ if [ -n "$1" ]; then
 	echo "Text      :" $TEXT
 	echo "Difficulty:" $DIFF
 	
-	./blockgen.bin $KEY "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks";
+	./blockgen.bin $KEY $TEXT $DIFF;
 else
 	echo "usage: ./mineGensis.sh keyname text"
 fi
