@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <inttypes.h>
 #include <ctype.h>
+#include <unistd.h>
 #include <string.h>
 #include <time.h>
 #include <openssl/sha.h>
@@ -126,7 +127,7 @@ Transaction *InitTransaction()
 	transaction->locktime = 0;
 	transaction->prevoutIndex = 0xFFFFFFFF;
 	transaction->sequence = 0xFFFFFFFF;
-	transaction->outValue = 50*COIN;
+	transaction->outValue = 21000000*COIN;
 	
 	// We initialize the previous output to 0 as there is none
 	memset(transaction->prevOutput, 0, 32);
@@ -136,18 +137,21 @@ Transaction *InitTransaction()
 
 int main(int argc, char *argv[])
 {
+
 	Transaction *transaction;
 	unsigned char hash1[32], hash2[32];
 	char timestamp[255], pubkey[132];
 	uint32_t timestamp_len = 0, scriptSig_len = 0, pubkey_len = 0, pubkeyScript_len = 0;
 	uint32_t nBits = 0;
-	
+
+	clock_t tstart = clock();
+
 	if((argc-1) < 3)
 	{
-		fprintf(stderr, "Usage: PROGRAM [options] <pubkey> \"<timestamp>\" <nBits>\n");
+		fprintf(stderr, "Usage: PROGRAM [options] <pubkey> \"<timestamp>\" <nBits> <startNonce optional> <unixTime optional>\n");
 		return 0;		
 	}
-	
+
 	pubkey_len = strlen(argv[1]) / 2; // One byte is represented as two hex characters, thus we divide by two to get real length.
 	timestamp_len = strlen(argv[2]);
 	
@@ -163,16 +167,21 @@ int main(int argc, char *argv[])
 		return 0;
 	}	
 
+	strncpy(pubkey, argv[1], sizeof(pubkey));
+	strncpy(timestamp, argv[2], sizeof(timestamp));
+	sscanf(argv[3], "%lu", (long unsigned int *)&nBits);
+
+	if((argc-1) > 3){
+		sscanf(argv[4], "%lu", (long unsigned int *)&startNonce);
+		sscanf(argv[5], "%lu", (long unsigned int *)&unixtime);
+	}
+
 	transaction = InitTransaction();
 	if(!transaction)
 	{
 		fprintf(stderr, "Could not allocate memory! Exiting...\n");
 		return 0;	
-	}
-	
-	strncpy(pubkey, argv[1], sizeof(pubkey));
-	strncpy(timestamp, argv[2], sizeof(timestamp));
-	sscanf(argv[3], "%lu", (long unsigned int *)&nBits);
+	}	
 	
 	pubkey_len = strlen(pubkey) >> 1;
 	scriptSig_len = timestamp_len;
@@ -180,7 +189,8 @@ int main(int argc, char *argv[])
 	// Encode pubkey to binary and prepend pubkey size, then append the OP_CHECKSIG byte
 	transaction->pubkeyScript = malloc((pubkey_len+2)*sizeof(uint8_t));
 	pubkeyScript_len = hex2bin(transaction->pubkeyScript+1, pubkey, pubkey_len); // No error checking, yeah.
-	transaction->pubkeyScript[0] = 0x41; // A public key is 32 bytes X coordinate, 32 bytes Y coordinate and one byte 0x04, so 65 bytes i.e 0x41 in Hex.
+	transaction->pubkeyScript[0] = 0x41; // A public key is 32 bytes X coordinate, 32 bytes Y coordinate and one byte 0x04, 
+	                                     // so 65 bytes i.e 0x41 in Hex.
 	pubkeyScript_len+=1;
 	transaction->pubkeyScript[pubkeyScript_len++] = OP_CHECKSIG;
 	
@@ -283,17 +293,23 @@ int main(int argc, char *argv[])
 	char *merkleHashSwapped = bin2hex(transaction->merkleHash, 32);
 	char *txScriptSig = bin2hex(transaction->scriptSig, scriptSig_len);
 	char *pubScriptSig = bin2hex(transaction->pubkeyScript, pubkeyScript_len);
-	printf("\nCoinbase: %s\n\nPubkeyScript: %s\n\nMerkle Hash: %s\nByteswapped: %s\n",txScriptSig, pubScriptSig, merkleHash, merkleHashSwapped);
+	// printf("\nCoinbase: %s\n\nPubkeyScript: %s\n\nMerkle Hash: %s\nByteswapped: %s\n",
+	// txScriptSig, pubScriptSig, merkleHash, merkleHashSwapped);
+	if(!unixtime){
+		unixtime = time(NULL);
+	}
+		
+	printf("Unix Time    : %d\n",unixtime);
+	printf("Start Nonce  : %d\n",startNonce);
+	printf("Coinbase     : %s\n",txScriptSig);
+	printf("PubkeyScript : %s\n",pubScriptSig);
+	printf("Merkle Hash  : %s\n",merkleHash);
+	printf("Byteswapped  : %s\n",merkleHashSwapped);
 	
 	//if(generateBlock)
 	{
-		printf("Generating block...\n");
-		printf("This might take a few minutes\n");
-		if(!unixtime)
-		{
-			unixtime = time(NULL);
-		}
-		
+		printf("\nGenerating block... (This might take some time)\n\n");
+
 		unsigned char block_header[80], block_hash1[32], block_hash2[32];
 		uint32_t blockversion = 1;
 		memcpy(block_header, &blockversion, 4);
@@ -321,13 +337,16 @@ int main(int argc, char *argv[])
 				free(blockHash);
 				break;
 			}
-			
+
 			startNonce++;
 			counter+=1;
 			if(time(NULL)-start >= 1)
 			{
-				printf("\r%d Hashes/s, Nonce %u\r", counter, startNonce);
-				printf("\r\n");
+
+				int tsecs = (((double)(clock() - tstart)) / CLOCKS_PER_SEC);
+				printf("\r%d Hashes/s, Nonce: %d [%d Mins, %02d Secs elapsed] ",  counter, startNonce, (int)(tsecs/((double)60)), tsecs % 60);
+				
+				fflush(stdout);
 				counter = 0;
 				start = time(NULL);
 			}
